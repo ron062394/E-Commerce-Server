@@ -11,7 +11,7 @@ const orderSchema = new mongoose.Schema({
       rated: { type: Boolean, default: false }, // Add a 'rated' field
     },
   ],
-  shippingInfo: {
+  shippingInfo: { 
     address: String,
     city: String,
     postalCode: String,
