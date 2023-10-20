@@ -44,7 +44,8 @@ const loginUser = async (req, res) => {
     const passwordMatch = await bcrypt.compare(password, user.password);
 
     if (passwordMatch) {
-      const token = jwt.sign({ userId: user._id, username: user.username }, process.env.JWT_SECRET, { expiresIn: '1h' });
+      // Include the user's role in the token payload
+      const token = jwt.sign({ userId: user._id, username: user.username, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1h' });
       return res.status(200).json({ message: 'Authentication successful', token });
     } else {
       return res.status(401).json({ message: 'Authentication failed: Invalid credentials' });
@@ -53,6 +54,7 @@ const loginUser = async (req, res) => {
     res.status(400).json({ message: 'Authentication failed', error: error.message });
   }
 };
+
 
 
 module.exports = { registerUser, loginUser };
