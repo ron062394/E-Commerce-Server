@@ -8,10 +8,12 @@ const orderSchema = new mongoose.Schema({
       product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
       quantity: { type: Number, required: true },
       price: { type: Number, required: true },
-      rated: { type: Boolean, default: false }, // Add a 'rated' field
+      rated: { type: Boolean, default: false },
     },
   ],
-  shippingInfo: { 
+  shippingInfo: {
+    name: String,  // Add full name field
+    contactNumber: String,  // Add contact number field
     address: String,
     city: String,
     postalCode: String,
@@ -23,7 +25,5 @@ const orderSchema = new mongoose.Schema({
     required: true,
   },
 });
-
-
 
 module.exports = mongoose.model('Order', orderSchema);

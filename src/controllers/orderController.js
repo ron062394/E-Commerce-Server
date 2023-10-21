@@ -34,7 +34,13 @@ const placeOrder = async (req, res) => {
           user: user._id,
           seller: sellerId, // Save seller's ID in the order
           products: [],
-          shippingInfo,
+          shippingInfo: { // Include name and contactNumber in shippingInfo
+            name: shippingInfo.name,
+            contactNumber: shippingInfo.contactNumber,
+            address: shippingInfo.address,
+            city: shippingInfo.city,
+            postalCode: shippingInfo.postalCode,
+          },
           orderTotal: 0,
           orderStatus: 'pending',
         };
@@ -52,7 +58,6 @@ const placeOrder = async (req, res) => {
       // Update stock quantities here
       item.product.stock -= item.quantity; // Decrease stock by the ordered quantity
       await item.product.save(); // Save the updated product
-
     });
 
     for (const sellerId in sellerOrders) {
@@ -78,6 +83,7 @@ const placeOrder = async (req, res) => {
     res.status(400).json({ message: 'Placing an order failed', error: error.message });
   }
 };
+
 
 
 
@@ -184,4 +190,10 @@ const updateOrderStatus = async (req, res) => {
   };
   
 
-module.exports = { placeOrder, viewOrderHistory, viewOrderDetails, updateOrderStatus, viewSellerOrders };
+module.exports = {
+  placeOrder,
+  viewOrderHistory,
+  viewOrderDetails,
+  updateOrderStatus,
+  viewSellerOrders
+};
