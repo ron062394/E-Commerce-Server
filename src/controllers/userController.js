@@ -21,7 +21,7 @@ const registerUser = async (req, res) => {
     await user.save();
 
     // Generate a JWT and send it as a response
-    const token = jwt.sign({ userId: user._id, username: user.username }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    const token = jwt.sign({ userId: user._id, username: user.username }, process.env.JWT_SECRET, { expiresIn: '2h' });
 
     res.status(201).json({ message: 'User registered successfully', token });
   } catch (error) {
@@ -45,7 +45,7 @@ const loginUser = async (req, res) => {
 
     if (passwordMatch) {
       // Include the user's role in the token payload
-      const token = jwt.sign({ userId: user._id, username: user.username, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1h' });
+      const token = jwt.sign({ userId: user._id, username: user.username, role: user.role }, process.env.JWT_SECRET, { expiresIn: '2h' });
       return res.status(200).json({ message: 'Authentication successful', token });
     } else {
       return res.status(401).json({ message: 'Authentication failed: Invalid credentials' });

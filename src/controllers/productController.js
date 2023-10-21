@@ -143,6 +143,79 @@ const getFeaturedProduct = async (req, res) => {
 };
 
 
+// Increment the quantity of a product in the cart
+const incrementQuantity = async (req, res) => {
+  const productId = req.params.productId; // The product ID to be incremented
+  const userId = req.user._id; // User ID
+
+  try {
+    // Find the user's cart
+    const cart = await Cart.findOne({ user: userId });
+
+    if (!cart) {
+      return res.status(404).json({ message: 'Cart not found' });
+    }
+
+    // Find the cart item that matches the product ID
+    const cartItem = cart.items.find((item) => item.product.toString() === productId);
+
+    if (!cartItem) {
+      return res.status(404).json({ message: 'Product not found in the cart' });
+    }
+
+    // Increment the quantity
+    cartItem.quantity++;
+
+    // Save the updated cart
+    await cart.save();
+
+    res.json({ message: 'Product quantity incremented successfully', cart });
+  } catch (error) {
+    res.status(400).json({ message: 'Incrementing quantity failed', error: error.message });
+  }
+};
+
+
+// Decrement the quantity of a product in the cart
+const decrementQuantity = async (req, res) => {
+  const productId = req.params.productId; // The product ID to be decremented
+  const userId = req.user._id; // User ID
+
+  try {
+    // Find the user's cart
+    const cart = await Cart.findOne({ user: userId });
+
+    if (!cart) {
+      return res.status(404).json({ message: 'Cart not found' });
+    }
+
+    // Find the cart item that matches the product ID
+    const cartItem = cart.items.find((item) => item.product.toString() === productId);
+
+    if (!cartItem) {
+      return res.status(404).json({ message: 'Product not found in the cart' });
+    }
+
+    // Decrement the quantity if it's greater than 1, otherwise remove the product
+    if (cartItem.quantity > 1) {
+      cartItem.quantity--;
+    } else {
+      // Remove the product from the cart
+      cart.items = cart.items.filter((item) => item.product.toString() !== productId);
+    }
+
+    // Save the updated cart
+    await cart.save();
+
+    res.json({ message: 'Product quantity decremented successfully', cart });
+  } catch (error) {
+    res.status(400).json({ message: 'Decrementing quantity failed', error: error.message });
+  }
+};
+
+
+
+
 module.exports = {
   createProduct,
   listProducts,
