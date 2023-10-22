@@ -57,6 +57,7 @@ const placeOrder = async (req, res) => {
 
       // Update stock quantities here
       item.product.stock -= item.quantity; // Decrease stock by the ordered quantity
+      item.product.quantitySold += item.quantity; //Increases item sold by the ordered quantity
       await item.product.save(); // Save the updated product
     });
 
@@ -92,13 +93,51 @@ const placeOrder = async (req, res) => {
 // View order history for a user
 const viewOrderHistory = async (req, res) => {
   try {
-    const user = req.user; // Assuming user is authenticated
+    const user = req.user;
 
     const orders = await Order.find({ user: user._id }).sort({ date: -1 });
 
-    res.json(orders);
+    // Enhance orders with product and seller information, order details, and created date
+    const enhancedOrders = await Promise.all(
+      orders.map(async (order) => {
+        const products = await Promise.all(
+          order.products.map(async (product) => {
+            const productDetails = await Product.findById(product.product);
+            const sellerDetails = await User.findById(productDetails.seller);
+
+            const enhancedProduct = {
+              ...product,
+              product: {
+                _id: productDetails._id,
+                title: productDetails.title,
+                description: productDetails.description,
+                price: productDetails.price,
+              },
+              seller: {
+                username: sellerDetails.username,
+                // Include other seller details if needed
+              },
+            };
+            return enhancedProduct;
+          })
+        );
+
+        const enhancedOrder = {
+          ...order.toObject(),
+          products: products,
+          // Include order details and created date
+          quantity: order.products.reduce((totalQuantity, product) => totalQuantity + product.quantity, 0),
+          shippingInfo: order.shippingInfo,
+          createdDate: order.date,
+        };
+
+        return enhancedOrder;
+      })
+    );
+
+    res.json(enhancedOrders);
   } catch (error) {
-    res.status(500).json({ message: 'Error fetching order history', error: error.message });
+    res.status(500).json({ message: 'Error fetching enhanced order history', error: error.message });
   }
 };
 

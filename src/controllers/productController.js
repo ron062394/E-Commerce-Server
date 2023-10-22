@@ -1,9 +1,8 @@
 const Product = require('../models/productModel');
 const Category = require('../models/categoryModel');
 
-// Create a new product (restricted to logged-in sellers)
 const createProduct = async (req, res) => {
-  const { title, description, price, images, categoryId, tags, stock } = req.body; // Include stock in the request body
+  const { title, description, price, images, categoryId, tags, stock } = req.body;
 
   // Check if the user is a seller
   if (req.user.role !== 'seller') {
@@ -25,7 +24,11 @@ const createProduct = async (req, res) => {
       category: category._id,
       seller: req.user._id,
       tags,
-      stock // Add stock to the product
+      stock,
+      quantitySold: 0, // Add default value for quantitySold
+      averageRating: 0, // Add default value for averageRating
+      totalReviews: 0, // Add default value for totalReviews
+      totalRating: 0, // Add default value for totalRating
     });
 
     await product.save();
@@ -34,6 +37,7 @@ const createProduct = async (req, res) => {
     res.status(400).json({ message: 'Product creation failed', error: error.message });
   }
 };
+
 
 // List all products
 const listProducts = async (req, res) => {
@@ -65,7 +69,7 @@ const getProductById = async (req, res) => {
 // Update a product by ID
 const updateProduct = async (req, res) => {
   const productId = req.params.id;
-  const { title, description, price, images, categoryId, tags, stock } = req.body; // Include stock in the request body
+  const { title, description, price, images, categoryId, tags, stock, quantitySold, averageRating } = req.body; // Include stock in the request body
 
   try {
     const product = await Product.findById(productId);
@@ -92,7 +96,8 @@ const updateProduct = async (req, res) => {
     product.images = images;
     product.category = category._id;
     product.tags = tags;
-    product.stock = stock; // Update the stock field
+    product.quantitySold = quantitySold; // Update the stock field
+    product.averageRating = averageRating; // Update the stock field
 
     await product.save();
 
