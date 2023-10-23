@@ -6,7 +6,7 @@ const { authenticateUser } = require('../middleware/authMiddleware');
 const {
     placeOrder,
     viewOrderHistory,
-    viewOrderDetails,
+    getOrderDetailsById,
     updateOrderStatus,
     viewSellerOrders
 } = require('../controllers/orderController');
@@ -18,10 +18,10 @@ router.post('/place', authenticateUser, placeOrder);
 router.get('/history', authenticateUser, viewOrderHistory);
 
 // View order details
-router.get('/:orderId', authenticateUser, viewOrderDetails);
+router.get('/:orderId', authenticateUser, getOrderDetailsById);
 
 // Update Order Status
-router.put('/:orderId/status', authenticateUser, updateOrderStatus);
+router.put('/:orderId', authenticateUser, updateOrderStatus);
 
 // Seller-specific route
 router.get('/seller/orders', authenticateUser, viewSellerOrders);

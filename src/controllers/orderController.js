@@ -5,9 +5,7 @@ const User = require('../models/userModel');
 const Product = require('../models/productModel');
 const Cart = require('../models/cartModel'); // Import the cart model
 
-// controllers/orderController.js
 // Place a new order
-// controllers/orderController.js
 // Place a new order
 const placeOrder = async (req, res) => {
   try {
@@ -15,7 +13,10 @@ const placeOrder = async (req, res) => {
     const user = req.user; // Assuming user is authenticated
 
     // Retrieve the contents of the buyer's cart
-    const cart = await Cart.findOne({ user: user._id }).populate('items.product');
+    const cart = await Cart.findOne({ user: user._id }).populate({
+      path: 'items.product',
+      select: 'seller title price stock', // Include necessary fields, including 'stock'
+    });
 
     if (!cart) {
       return res.status(400).json({ message: 'No items in the cart. Cannot place an empty order.' });
@@ -27,39 +28,74 @@ const placeOrder = async (req, res) => {
     // Group items by seller
     const sellerOrders = {};
 
-    cart.items.forEach(async (item) => {
-      const sellerId = item.product.seller.toString();
-      if (!sellerOrders[sellerId]) {
-        sellerOrders[sellerId] = {
-          user: user._id,
-          seller: sellerId, // Save seller's ID in the order
-          products: [],
-          shippingInfo: { // Include name and contactNumber in shippingInfo
-            name: shippingInfo.name,
-            contactNumber: shippingInfo.contactNumber,
-            address: shippingInfo.address,
-            city: shippingInfo.city,
-            postalCode: shippingInfo.postalCode,
-          },
-          orderTotal: 0,
-          orderStatus: 'pending',
-        };
+    for (const item of cart.items) {
+      if (item.product && item.product.seller) {
+        const sellerId = item.product.seller.toString();
+
+        // Ensure seller data is available
+        if (!sellerOrders[sellerId]) {
+          const sellerUser = await User.findById(sellerId);
+
+          if (!sellerUser) {
+            return res.status(400).json({ message: 'Seller information not found.' });
+          }
+
+          sellerOrders[sellerId] = {
+            buyer: {
+              userId: user._id,
+              username: user.username,
+            },
+            seller: {
+              userId: sellerId,
+              username: sellerUser.username,
+            },
+            products: [],
+            shippingInfo: {
+              name: shippingInfo.name,
+              contactNumber: shippingInfo.contactNumber,
+              address: shippingInfo.address,
+              city: shippingInfo.city,
+              postalCode: shippingInfo.postalCode,
+            },
+            orderTotal: 0,
+            orderStatus: 'pending',
+          };
+        }
+
+        const productPrice = item.product.price;
+        const itemTotal = item.quantity * productPrice;
+
+        // Find the product by ID
+        const product = await Product.findById(item.product._id);
+
+        if (product) {
+          if (product.stock >= item.quantity) {
+            product.stock -= item.quantity;
+            product.quantitySold += item.quantity;
+            await product.save(); // Save changes to the product
+
+            sellerOrders[sellerId].products.push({
+              productId: item.product._id,
+              title: item.product.title,
+              quantity: item.quantity,
+              price: productPrice,
+              itemTotal: itemTotal,
+            });
+
+            sellerOrders[sellerId].orderTotal += itemTotal;
+          } else {
+            const productName = item.product.title;
+            return res.status(400).json({
+              message: `Sorry, ${productName} is out of stock or you've ordered more than available.`,
+            });
+          }
+        } else {
+          console.error('Product not found for item in the cart.');
+        }
+      } else {
+        console.error('Invalid item or seller information for an item in the cart.');
       }
-
-      const productPrice = item.product.price;
-      sellerOrders[sellerId].products.push({
-        product: item.product._id,
-        quantity: item.quantity,
-        price: productPrice,
-      });
-
-      sellerOrders[sellerId].orderTotal += item.quantity * productPrice;
-
-      // Update stock quantities here
-      item.product.stock -= item.quantity; // Decrease stock by the ordered quantity
-      item.product.quantitySold += item.quantity; //Increases item sold by the ordered quantity
-      await item.product.save(); // Save the updated product
-    });
+    }
 
     for (const sellerId in sellerOrders) {
       if (sellerOrders.hasOwnProperty(sellerId)) {
@@ -73,10 +109,8 @@ const placeOrder = async (req, res) => {
     // Clear the buyer's cart or update its status
     const clearCart = await Cart.findOne({ user: user._id });
     if (clearCart) {
-      // If you need to update the cart status, you can do so here.
-      // For example, set a status like 'order-placed' or 'active'.
-      cart.items = []; // Clear the items in the cart
-      await cart.save();
+      clearCart.items = [];
+      await clearCart.save();
     }
 
     res.status(201).json({ message: 'Order placed successfully', orders });
@@ -94,79 +128,79 @@ const placeOrder = async (req, res) => {
 const viewOrderHistory = async (req, res) => {
   try {
     const user = req.user;
-
-    const orders = await Order.find({ user: user._id }).sort({ date: -1 });
-
-    // Enhance orders with product and seller information, order details, and created date
-    const enhancedOrders = await Promise.all(
-      orders.map(async (order) => {
-        const products = await Promise.all(
-          order.products.map(async (product) => {
-            const productDetails = await Product.findById(product.product);
-            const sellerDetails = await User.findById(productDetails.seller);
-
-            const enhancedProduct = {
-              ...product,
-              product: {
-                _id: productDetails._id,
-                title: productDetails.title,
-                description: productDetails.description,
-                price: productDetails.price,
-              },
-              seller: {
-                username: sellerDetails.username,
-                // Include other seller details if needed
-              },
-            };
-            return enhancedProduct;
-          })
-        );
-
-        const enhancedOrder = {
-          ...order.toObject(),
-          products: products,
-          // Include order details and created date
-          quantity: order.products.reduce((totalQuantity, product) => totalQuantity + product.quantity, 0),
-          shippingInfo: order.shippingInfo,
-          createdDate: order.date,
-        };
-
-        return enhancedOrder;
-      })
-    );
-
-    res.json(enhancedOrders);
+    const orders = await Order.find({ 'buyer.userId': user._id }).sort({ date: -1 });
+    res.json(orders);
   } catch (error) {
-    res.status(500).json({ message: 'Error fetching enhanced order history', error: error.message });
+    res.status(500).json({ message: 'Error fetching order history', error: error.message });
   }
 };
 
-
-
+// View seller orders
 const viewSellerOrders = async (req, res) => {
   try {
-    const seller = req.user; // Assuming the user is a seller
-
-    // Find orders where the seller's ID matches the user's ID
-    const orders = await Order.find({ 'seller': seller._id }).sort({ date: -1 });
-
+    const seller = req.user;
+    const orders = await Order.find({ 'seller.userId': seller._id }).sort({ date: -1 });
     res.json(orders);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching seller order history', error: error.message });
   }
 };
 
-module.exports = {
-  // ... other controller functions
-  viewSellerOrders,
+
+
+const updateOrderStatus = async (req, res) => {
+  try {
+    const orderId = req.params.orderId;
+    const newStatus = req.body.orderStatus;
+    const user = req.user; // Assuming user is authenticated
+
+    const order = await Order.findById(orderId).populate('products.product'); // Use 'products.product' as the path
+
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    // Check if the new status is one of the allowed enum values
+    if (!['pending', 'preparing to ship', 'shipped', 'product received'].includes(newStatus)) {
+      return res.status(400).json({ message: 'Invalid order status' });
+    }
+
+    // Check if the user is the seller of the product in the order
+    const isSeller = order.products.some((product) => product.product.seller.toString() === user._id.toString());
+
+    if (newStatus === 'preparing to ship' || newStatus === 'shipped') {
+      if (!isSeller) {
+        return res.status(403).json({ message: 'Unauthorized: Only sellers can update to preparing to ship or shipped' });
+      }
+    } else if (newStatus === 'product received') {
+      if (order.buyer.userId.toString() !== user._id.toString()) { // Change 'user' to 'order.buyer.userId'
+        return res.status(403).json({ message: 'Unauthorized: Only the user who placed the order can update to product received' });
+      }
+    }
+
+    // Update the order status
+    order.orderStatus = newStatus;
+
+    // Save the updated order
+    await order.save();
+
+    res.json({ message: 'Order status updated successfully', order });
+  } catch (error) {
+    res.status(500).json({ message: 'Error updating order status', error: error.message });
+  }
 };
 
 
-// View order details
-const viewOrderDetails = async (req, res) => {
+// View a single order details
+const getOrderDetailsById = async (req, res) => {
+  const orderId = req.params.orderId; // Get the order ID from the URL parameter
+
   try {
-    const orderId = req.params.orderId;
-    const order = await Order.findById(orderId).populate('products.product');
+    // Find the order by its ID and populate relevant data
+    const order = await Order.findById(orderId)
+      .populate('buyer.userId', 'username') // Populate buyer's username
+      .populate('seller.userId', 'username') // Populate seller's username
+      .populate('products.productId', 'title price quantity description'); // Populate product details
 
     if (!order) {
       return res.status(404).json({ message: 'Order not found' });
@@ -178,61 +212,11 @@ const viewOrderDetails = async (req, res) => {
   }
 };
 
-// Utility function to calculate the total price of products in an order
-const calculateOrderTotal = (products) => {
-  return products.reduce((total, product) => {
-    return total + product.price * product.quantity;
-  }, 0);
-};
-
-// Update Order Status
-const updateOrderStatus = async (req, res) => {
-    try {
-      const orderId = req.params.orderId;
-      const newStatus = req.body.orderStatus;
-      const user = req.user; // Assuming user is authenticated
-  
-      const order = await Order.findById(orderId).populate('products.product');
-  
-      if (!order) {
-        return res.status(404).json({ message: 'Order not found' });
-      }
-  
-      // Check if the new status is one of the allowed enum values
-      if (!['pending', 'preparing to ship', 'shipped', 'product received'].includes(newStatus)) {
-        return res.status(400).json({ message: 'Invalid order status' });
-      }
-  
-      // Check if the user is the seller of the product in the order
-      const isSeller = order.products.some((product) => product.product.seller.toString() === user._id.toString());
-  
-      if (newStatus === 'preparing to ship' || newStatus === 'shipped') {
-        if (!isSeller) {
-          return res.status(403).json({ message: 'Unauthorized: Only sellers can update to preparing to ship or shipped' });
-        }
-      } else if (newStatus === 'product received') {
-        if (order.user.toString() !== user._id.toString()) {
-          return res.status(403).json({ message: 'Unauthorized: Only the user who placed the order can update to product received' });
-        }
-      }
-  
-      // Update the order status
-      order.orderStatus = newStatus;
-  
-      // Save the updated order
-      await order.save();
-  
-      res.json({ message: 'Order status updated successfully', order });
-    } catch (error) {
-      res.status(500).json({ message: 'Error updating order status', error: error.message });
-    }
-  };
-  
 
 module.exports = {
   placeOrder,
   viewOrderHistory,
-  viewOrderDetails,
+  getOrderDetailsById,
   updateOrderStatus,
   viewSellerOrders
 };

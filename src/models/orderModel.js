@@ -1,22 +1,29 @@
 const mongoose = require('mongoose');
 
 const orderSchema = new mongoose.Schema({
-  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  seller: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  buyer: {
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    username: { type: String, required: true },
+  },
+  seller: {
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    username: { type: String, required: true },
+  },
   products: [
     {
-      product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
+      productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
+      title: { type: String, required: true },
       quantity: { type: Number, required: true },
       price: { type: Number, required: true },
       rated: { type: Boolean, default: false },
     },
   ],
   shippingInfo: {
-    name: String,  // Add full name field
-    contactNumber: String,  // Add contact number field
-    address: String,
-    city: String,
-    postalCode: String,
+    name: { type: String, required: true },
+    contactNumber: { type: String, required: true },
+    address: { type: String, required: true },
+    city: { type: String, required: true },
+    postalCode: { type: String, required: true },
   },
   orderTotal: { type: Number, required: true },
   orderStatus: {
