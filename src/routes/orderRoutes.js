@@ -11,6 +11,8 @@ const {
     viewSellerOrders
 } = require('../controllers/orderController');
 
+const {getProductsToReview} = require('../controllers/advanceFilter')
+
 // Place a new order
 router.post('/place', authenticateUser, placeOrder);
 
@@ -26,5 +28,6 @@ router.put('/:orderId', authenticateUser, updateOrderStatus);
 // Seller-specific route
 router.get('/seller/orders', authenticateUser, viewSellerOrders);
 
+router.get('/products-to-review', authenticateUser, getProductsToReview);
 
 module.exports = router;

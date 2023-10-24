@@ -151,44 +151,41 @@ const viewSellerOrders = async (req, res) => {
 const updateOrderStatus = async (req, res) => {
   try {
     const orderId = req.params.orderId;
-    const newStatus = req.body.orderStatus;
-    const user = req.user; // Assuming user is authenticated
-
-    const order = await Order.findById(orderId).populate('products.product'); // Use 'products.product' as the path
-
-    if (!order) {
-      return res.status(404).json({ message: 'Order not found' });
-    }
+    const { newStatus } = req.body;
 
     // Check if the new status is one of the allowed enum values
-    if (!['pending', 'preparing to ship', 'shipped', 'product received'].includes(newStatus)) {
-      return res.status(400).json({ message: 'Invalid order status' });
+    if (!['preparing to ship', 'shipped', 'product received'].includes(newStatus)) {
+      return res.status(400).json({ error: 'Invalid order status' });
     }
 
-    // Check if the user is the seller of the product in the order
-    const isSeller = order.products.some((product) => product.product.seller.toString() === user._id.toString());
+    // Find the order by ID
+    const order = await Order.findById(orderId);
 
-    if (newStatus === 'preparing to ship' || newStatus === 'shipped') {
-      if (!isSeller) {
-        return res.status(403).json({ message: 'Unauthorized: Only sellers can update to preparing to ship or shipped' });
-      }
-    } else if (newStatus === 'product received') {
-      if (order.buyer.userId.toString() !== user._id.toString()) { // Change 'user' to 'order.buyer.userId'
-        return res.status(403).json({ message: 'Unauthorized: Only the user who placed the order can update to product received' });
-      }
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
     }
 
-    // Update the order status
-    order.orderStatus = newStatus;
+    // Check if the authenticated user is the seller or buyer
+    if (req.user._id.toString() === order.seller.userId.toString() && ['preparing to ship', 'shipped'].includes(newStatus)) {
+      // Seller can set status to 'preparing to ship' and 'shipped'
+      order.orderStatus = newStatus;
+    } else if (req.user._id.toString() === order.buyer.userId.toString() && newStatus === 'product received') {
+      // Buyer can set status to 'product received'
+      order.orderStatus = newStatus;
+    } else {
+      return res.status(403).json({ error: 'Unauthorized: User cannot change the status to this value' });
+    }
 
-    // Save the updated order
+    // Save the updated order without modifying the 'rated' flag
     await order.save();
 
-    res.json({ message: 'Order status updated successfully', order });
+    res.json(order);
   } catch (error) {
-    res.status(500).json({ message: 'Error updating order status', error: error.message });
+    console.error(error);
+    res.status(500).json({ error: 'Internal Server Error' });
   }
 };
+
 
 
 // View a single order details

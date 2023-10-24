@@ -2,7 +2,26 @@ const Review = require('../models/reviewModel');
 const Product = require('../models/productModel');
 const Order = require('../models/orderModel');
 
-// Create a new review
+const updateProductRating = async (productId, rating) => {
+  const product = await Product.findById(productId);
+  product.totalReviews += 1;
+  product.totalRating += rating;
+  product.averageRating = product.totalRating / product.totalReviews;
+  await product.save();
+};
+
+const markProductAsRated = async (orderId, productId) => {
+  const order = await Order.findById(orderId);
+  const productInfo = order.products.find((productInfo) => productInfo.productId.toString() === productId);
+
+  if (!productInfo) {
+    throw new Error('Product not found in the order');
+  }
+
+  productInfo.rated = true;
+  await order.save();
+};
+
 const createReview = async (req, res) => {
   try {
     const { order_id, product_id, rating, review } = req.body;
@@ -18,17 +37,8 @@ const createReview = async (req, res) => {
     }
 
     // Verify that the user in the token matches the user associated with the order
-    if (userOrder.user.toString() !== user._id.toString()) {
+    if (userOrder.buyer.userId.toString() !== user._id.toString()) {
       return res.status(403).json({ message: 'You are not authorized to review this order' });
-    }
-
-    // Find the product
-    const productInfo = userOrder.products.find(
-      (productInfo) => productInfo.product.toString() === product_id
-    );
-
-    if (!productInfo) {
-      return res.status(400).json({ message: 'Product not found in the order' });
     }
 
     // Check the order status
@@ -37,6 +47,7 @@ const createReview = async (req, res) => {
     }
 
     // Check if the user has already rated the product in this specific order
+    const productInfo = userOrder.products.find((productInfo) => productInfo.productId.toString() === product_id);
     if (productInfo.rated) {
       return res.status(400).json({ message: 'You have already rated this product in this order' });
     }
@@ -45,14 +56,17 @@ const createReview = async (req, res) => {
     const newReview = new Review({ user: user._id, order: order_id, product: product_id, rating, review });
     await newReview.save();
 
-    // Mark the product as rated in the purchase instance
-    productInfo.rated = true;
-    await userOrder.save();
+    // Update product rating and mark it as rated
+    await updateProductRating(product_id, rating);
+    await markProductAsRated(order_id, product_id);
 
     res.status(201).json({ message: 'Review created successfully', review: newReview });
   } catch (error) {
     res.status(400).json({ message: 'Error creating review', error: error.message });
   }
 };
+
+module.exports = { createReview };
+
 
 module.exports = { createReview };
